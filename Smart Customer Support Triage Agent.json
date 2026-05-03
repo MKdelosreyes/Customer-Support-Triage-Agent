@@ -1,0 +1,426 @@
+{
+  "name": "Smart Customer Support Triage Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Customer Support",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Name"
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email"
+            },
+            {
+              "fieldLabel": "Message",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "f9e81e8e-337f-43f8-b6a5-46ff813b5d22",
+      "name": "Ticket Intake (Form Trigger)",
+      "webhookId": "97a7aaca-39c1-4c00-92cf-6676ac9ec6a4"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a professional customer support assistant.\n\nAnalyze the message below and return ONLY JSON.\n\nCustomer Name:\n{{ $json.Name }}\n\nMessage:\n{{ $json.Message }}\n\nTasks:\n1. Determine sentiment (positive, neutral, negative)\n2. Categorize the issue (technical, billing, feedback)\n3. Assign priority (low, medium, high)\n4. Generate a professional, empathetic, and personalized response\n\nResponse guidelines:\n- Address the customer by their first name\n- Be empathetic and human, not robotic\n- Clearly acknowledge the issue\n- Reassure the customer it will be resolved\n- Keep it concise and professional (3–5 sentences max)\n\nFormatting rules:\n- Write the response as properly formatted paragraphs\n- Do NOT insert line breaks in the middle of sentences\n- Use 1–2 paragraphs only\n- Use a blank line between paragraphs\n\nReturn format:\n{\n  \"sentiment\": \"\",\n  \"category\": \"\",\n  \"priority\": \"\",\n  \"response\": \"\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "094b61fd-255c-4739-b17a-250cb1da006b",
+      "name": "AI Ticket Analyzer (LLM)",
+      "credentials": {
+        "openAiApi": {
+          "id": "7dZiSgWjO23zKJvV",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get raw AI response\nconst raw = $input.first().json.output[0].content[0].text;\n\n// Parse AI JSON\nlet aiData;\n\ntry {\n  aiData = JSON.parse(raw);\n} catch (e) {\n  aiData = {\n    sentiment: \"unknown\",\n    category: \"general\",\n    priority: \"low\",\n    response: \"We received your request and will get back to you shortly.\"\n  };\n}\n\n// Clean response formatting\nif (aiData.response) {\n  aiData.response = aiData.response\n    .replace(/\\n+/g, ' ')     // remove line breaks inside sentences\n    .replace(/\\s+/g, ' ')     // normalize spacing\n    .trim();\n}\n\n// Get original form data\nconst original = $input.first().json;\n\n// Extract first name\nconst name = original.Name || \"\";\nconst firstName = name.trim().split(/\\s+/)[0];\n\n// Create ticket ID + timestamp\nconst ticket_id = \"TICKET-\" + Date.now().toString().slice(-6);\nconst timestamp = new Date().toISOString();\n\n// Merge everything\nreturn [\n  {\n    json: {\n      ...original,\n      ...aiData,\n      first_name: firstName,\n      ticket_id,\n      timestamp,\n      status:\n        aiData.priority === \"high\"\n          ? \"escalated\"\n          : aiData.priority === \"medium\"\n            ? \"pending\"\n            : \"closed\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        0
+      ],
+      "id": "661c3ebb-8564-456e-b798-22bab8171aee",
+      "name": "Parse & Enrich Ticket Data"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1wTPj2_nC1t1m02J8wwvwNLn6gHhUNr4S68paez2k2xc",
+          "mode": "list",
+          "cachedResultName": "Support Tickets Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wTPj2_nC1t1m02J8wwvwNLn6gHhUNr4S68paez2k2xc/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1wTPj2_nC1t1m02J8wwvwNLn6gHhUNr4S68paez2k2xc/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Ticket Intake (Form Trigger)').item.json.Name }}",
+            "Email": "={{ $('Ticket Intake (Form Trigger)').item.json.Email }}",
+            "Message": "={{ $('Ticket Intake (Form Trigger)').item.json.Message }}",
+            "Category": "={{ $json.category }}",
+            "Priority": "={{ $json.priority }}",
+            "Sentiment": "={{ $json.sentiment }}",
+            "Response": "={{ $json.response }}",
+            "TicketID": "={{ $json.ticket_id }}",
+            "Timestamp": "={{ $json.timestamp }}",
+            "Status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "TicketID",
+              "displayName": "TicketID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Message",
+              "displayName": "Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sentiment",
+              "displayName": "Sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Response",
+              "displayName": "Response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        752,
+        0
+      ],
+      "id": "687b2553-ddb4-4140-a913-347119910cd4",
+      "name": "Log Ticket (Google Sheets)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TSbhruHEyrrwdqNU",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "62ad2bc7-ea44-4bcc-ac6d-00448ab3e428",
+              "leftValue": "={{ $json.Priority }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        976,
+        0
+      ],
+      "id": "d90f0d68-b840-4982-90bf-f448bea7e2a5",
+      "name": "Priority Gate (High vs Non-High)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "98ec77a5-6aa5-4dc6-aff2-7a117ce96724",
+              "name": "department_email",
+              "value": "={{ \n  $json.category === \"billing\" \n    ? \"billing@company.com\" \n    : $json.category === \"technical\" \n      ? \"aralila.team@gmail.com\" \n      : \"karylle.gomezdelosreyes@gmail.com\" \n}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1232,
+        -96
+      ],
+      "id": "16e4f452-5de2-424b-b19a-b873511283a0",
+      "name": "Department Router (Category → Email)"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json[\"department_email\"] }}",
+        "subject": "=[HIGH PRIORITY] {{ $('Priority Gate (High vs Non-High)').item.json.TicketID }} - {{ $('Priority Gate (High vs Non-High)').item.json.Category }}",
+        "emailType": "text",
+        "message": "=Ticket ID: {{ $('Priority Gate (High vs Non-High)').item.json.TicketID }}\nName: {{$('Priority Gate (High vs Non-High)').item.json[\"Name\"]}}\nEmail: {{$('Priority Gate (High vs Non-High)').item.json[\"Email\"]}}\n\nIssue:\n{{$('Priority Gate (High vs Non-High)').item.json[\"Message\"]}}\n\nAI Summary:\nCategory: {{$('Priority Gate (High vs Non-High)').item.json[\"Category\"]}}\nPriority: {{$('Priority Gate (High vs Non-High)').item.json[\"Priority\"]}}\nSentiment: {{$('Priority Gate (High vs Non-High)').item.json[\"Sentiment\"]}}\n\nSuggested Response:\n{{$('Priority Gate (High vs Non-High)').item.json[\"Response\"]}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1456,
+        -96
+      ],
+      "id": "71abe773-da59-455c-ade8-dd1ee2d673fe",
+      "name": "Escalate Ticket (Send to Department)",
+      "webhookId": "72191688-1067-4ae0-ae86-ac3d3701e4fa",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "4UukQrR7dPdpqKLD",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "=Re: Your Support Request {{ $json.TicketID }}",
+        "emailType": "text",
+        "message": "={{$json[\"Response\"]}}\n\nBest regards,\nSupport Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1232,
+        80
+      ],
+      "id": "181e8b3d-cc15-4927-b589-1889c424606f",
+      "name": "Send Auto-Reply to Customer",
+      "webhookId": "72191688-1067-4ae0-ae86-ac3d3701e4fa",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "4UukQrR7dPdpqKLD",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ticket Intake (Form Trigger)": {
+      "main": [
+        [
+          {
+            "node": "AI Ticket Analyzer (LLM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Ticket Analyzer (LLM)": {
+      "main": [
+        [
+          {
+            "node": "Parse & Enrich Ticket Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Enrich Ticket Data": {
+      "main": [
+        [
+          {
+            "node": "Log Ticket (Google Sheets)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Ticket (Google Sheets)": {
+      "main": [
+        [
+          {
+            "node": "Priority Gate (High vs Non-High)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Priority Gate (High vs Non-High)": {
+      "main": [
+        [
+          {
+            "node": "Department Router (Category → Email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Auto-Reply to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Department Router (Category → Email)": {
+      "main": [
+        [
+          {
+            "node": "Escalate Ticket (Send to Department)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate Ticket (Send to Department)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d0d2ecbf-eaa0-41e6-8632-47f5b9f07de8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "26995cec42e076bb93445dcc1eb0a03abb453db9fc0d5f5177ab8230dbe5a306"
+  },
+  "id": "QeqV4tBbqpt3FsLC",
+  "tags": []
+}
