@@ -41,6 +41,8 @@ It performs:
 
 ## Architecture
 
+![Architecture Diagram](docs/screenshots/architecture_diagram.png)
+
 The workflow follows four main stages:
 
 1. **Intake**
