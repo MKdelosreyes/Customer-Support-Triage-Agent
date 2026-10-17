@@ -8,6 +8,7 @@ It analyzes each ticket using a large language model (LLM), classifies it by sen
 
 The goal is to reduce manual effort in ticket handling while improving response speed and consistency.
 
+![Workflow Overview](docs/screenshots/workflow_screenshot.png)
 ---
 
 ## Problem
