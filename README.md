@@ -41,7 +41,7 @@ It performs:
 
 ## Architecture
 
-![Architecture Diagram](docs/screenshots/architecture_diagram.png)
+![Architecture Diagram](docs/screenshots/architecture_diagram.jpg)
 
 The workflow follows four main stages:
 
